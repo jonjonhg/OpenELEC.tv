@@ -1,0 +1,53 @@
+#!/bin/bash
+FILE="/tmp/out.$$"
+GREP="/bin/grep"
+if [[ $EUID -ne 0 ]]; then
+   echo "This script must be run as root" 1>&2
+   exit 1
+fi
+apt-get update
+apt-get install -y parted zenity
+zenity --info --text "Welcome to the Crystal HD Linux for Apple TV Installer\n\nThis script will allow you to easily install a Linux distribution onto a USB drive or your Apple TV's internal hard drive.\n\nFor help and support with this software, visit http://stmlabs.com"
+os=$(zenity  --list  --text "Which distribution would you like to install?" --radiolist  --column "Pick" --column "Linux Distro" TRUE "Ubuntu 8.0.4" FALSE "Apple OS");
+installtype=$(zenity  --list  --text "Where would you like to install $os?" --radiolist  --column "Pick" --column "Install Type" TRUE "USB Drive" FALSE "Internal Drive");
+driveletter=$(zenity --entry --text "Drive letter of USB: (Careful)" --entry-text "/dev/sdb");
+case $os in
+     "Ubuntu 8.0.4" )
+           path="ubuntu/hardy"
+     type="ubuntu"
+           ;;
+     "Apple OS" )
+           path="appleos"
+		#lazy hack
+		installtype="Internal Drive"
+           type="osx"
+           ;;
+esac
+case $installtype in
+     "USB Drive" )
+           wget http://download.stmlabs.com/atv-images/$path/usb/USB.img.gz
+	   echo Extracting image and imaging device
+           gunzip -c USB.img.gz | dd of="$driveletter"
+           echo Resync
+           partprobe $driveletter
+           zenity --info --text "The task has been completed."
+           ;;
+     "Internal Drive" )
+           wget http://download.stmlabs.com/atv-images/installer/installer.img.gz
+	   echo Extracting image and imaging device
+	   gunzip -c installer.img.gz | dd of="$driveletter"
+           echo Resync
+           partprobe $driveletter
+           echo Mounting device
+           mkdir mnt
+	      mount "$driveletter"3 mnt
+           echo Injecting OS distro choice
+           chmod 7777 mnt/.distro
+           echo $type > mnt/.distro
+	   echo Unmounting, clean up
+           umount "$driveletter"3
+           rm -rf mnt
+           zenity --info --text "The task has been completed."
+           ;;
+esac
+exit
